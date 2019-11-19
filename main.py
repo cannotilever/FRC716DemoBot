@@ -1,15 +1,17 @@
+#Shanea was here
+#WARNING: l2ping saftey checks are commented!
 #716 Demo-bot code for RaspberryPi 3b+, updated 11/1/19 by Jacob Ellington
 import time
 import math
 import pygame
 import os
-#from adafruit_servokit import ServoKit
 from pygame.locals import *
-global loop, rightDrive, leftDrive, deadMan, controller, CtrlType
+global loop, rightDrive, leftDrive, deadMan, controller, CtrlType, ShootTimer
 import sys
+import board
+import digitalio
 loop = 0
 deadMan = False #starts assuming deadman is active, meaning robot cannot move
-#board = ServoKit(channels=16)
 black = (0,0,0)
 ShootTimer = 0
 white = (255,255,255)
@@ -25,12 +27,16 @@ ShootWheel = 2
 FeedWheel = 3
 TableMotor = 4
 #---
-idle = 0
-ShootPower = 0.99
-FeedPower = 0.99
+idle = 0 #0.025
+shootIdle = 0.025
+ShootPower = 0.9
+FeedPower = 0.5
 TablePower = 0.99
-DrivePower = 0.99
-ShootDelay = 2 #Seconds to allow shooter to spool up
+DrivePower = 0.5
+ShootDelay = 2.2 #Seconds to allow shooter to spool up
+xDeadZone = 0.16
+yDeadZone = 0.16
+MotorDeadZone = 0 #0.025
 #-----End Output Mappings-------
 CtrlType = 'wired' #assumes we are using xbox wired controls
 verbose = False
@@ -77,17 +83,19 @@ pygame.init()
 robotDisplay = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
 pygame.display.set_caption('Demo Bot')
 def Controls_init():
-	global CtrlType, controller, controllerX, controllerY, rTrigger, lTrigger, rBumper, lBumper, bButton, verbose
+	global CtrlType, controller, controllerX, rStickDown, controllerY, rTrigger, lTrigger, rBumper, lBumper, bButton, verbose, xButton
 	controller = pygame.joystick.Joystick(0)
 	controller.init()
 	if CtrlType == 'wireless': #default mappings for wireless controller
 		controllerY = -1* (controller.get_axis(3))
 		controllerX = controller.get_axis(2)
 		rTrigger = controller.get_axis(4)
-		lTrigger = 0 #Need Value!
-		rBumper = 0 #Need Value!
+		lTrigger = controller.get_axis(5)
+		rBumper = controller.get_button(6)
 		lBumper = controller.get_button(6)
 		bButton = controller.get_button(1)
+		xButton = controller.get_button(3)
+		rStickDown = controller.get_button(14)
 	elif CtrlType == 'wired': #default mappings for Wired controller
 		controllerY = -1* (controller.get_axis(4))
 		controllerX = controller.get_axis(3)
@@ -96,12 +104,19 @@ def Controls_init():
 		rBumper = controller.get_button(5)
 		lBumper = controller.get_button(4)
 		bButton = controller.get_button(1)
+		xButton = controller.get_button(2)
 	else:
 		print("Critical Error")
 		if verbose:
 			print("Error: a control scheme has not been assigned to the CtrlType variable. Halt. Got Control Scheme: ", CtrlType)
 		pygame.quit()
 		exit()
+	if verbose: print("Raw Inputs (x,y) are: {0}, {1}".format(controllerX, controllerY))
+	if abs(controllerY) <= yDeadZone:
+		controllerY = 0
+	if abs(controllerX) <= xDeadZone:
+		controllerX = 0
+
 def text_objects(text, font):
 	textSurface = font.render(text, True, black)
 	return textSurface, textSurface.get_rect()
@@ -119,9 +134,15 @@ def sub_message_display(text): #TODO: fix strobing issue
 	pygame.display.update()
 def loopDrive():
 	global controllerY, controllerX
-	if verbose: print ("X, Y= ", controllerX, controllerY)
-	leftPower = (controllerY + controllerX)
-	rightPower = (controllerY - controllerX)
+	if verbose: print ("Processed X, Y= ", controllerX, controllerY)
+	leftPower = (controllerY - controllerX) + idle
+	rightPower = (controllerY + controllerX) + idle
+	if rStickDown == 0:
+		leftPower = leftPower * DrivePower
+		rightPower = rightPower * DrivePower
+	elif rStickDown == 1:
+		if verbose: print("Speed Override ON!")
+		sub_message_display("Speed Override ON")
 	if leftPower >= 1:
 		leftPower = 0.99
 	if rightPower >= 1:
@@ -132,22 +153,21 @@ def loopDrive():
 		rightPower = -0.99
 	board.continuous_servo[LeftDrive].throttle = leftPower
 	board.continuous_servo[RightDrive].throttle = rightPower
-	if verbose:
-		print ("Motor Conditions (l,r):", leftPower, rightPower)
+	if verbose: print ("Motor Conditions (l,r):", leftPower, rightPower)
 def shooter():
-	global rTrigger
+	global rTrigger, ShootTimer
 	if rTrigger >= 0.5:
 		if verbose:
 			print("Shooter System Activated!")
-	board.continuous_servo[ShootWheel].throttle = ShootPower
-	if (time.time() - ShootTimer) > ShootDelay:
-		board.continuous_servo[TableMotor].throttle = TablePower
-		board.continuous_servo[FeedWheel].throttle = FeedPower
+		board.continuous_servo[ShootWheel].throttle = ShootPower
+		if (time.time() - ShootTimer) > ShootDelay:
+			board.continuous_servo[TableMotor].throttle = TablePower
+			board.continuous_servo[FeedWheel].throttle = FeedPower
 	else:
 		ShootTimer = time.time()
 		board.continuous_servo[TableMotor].throttle = idle
-		board.continuous_servo[FeedMotor].throttle = idle
-		board.continuous_servo[ShootMotor].throttle = idle
+		board.continuous_servo[FeedWheel].throttle = shootIdle
+		board.continuous_servo[ShootWheel].throttle = shootIdle
 def eventHandler():
 	global deadMan, CtrlType
 	deadMan = True
@@ -161,20 +181,22 @@ def eventHandler():
 				exit()
 	if bButton == 1:
 		exit()
+	if xButton == 1:
+		os.system("sudo shutdown now") #cut power immediatley
 	if lBumper == 1:
 		deadMan = False
-	if CtrlType == 'wireless':
-		ping = os.system("l2ping -c 1 5C:BA:37:E5:A7:8D")
-		if ping !=0:
-			deadMan = True
+	#if CtrlType == 'wireless':
+	#	ping = os.system("l2ping -c 1 5C:BA:37:E5:A7:8D")
+	#	if ping !=0:
+	#		deadMan = True
 def Stopped():
 	if deadMan == True:
 		print("Stopped!")
 		board.continuous_servo[RightDrive].throttle = idle
 		board.continuous_servo[LeftDrive].throttle = idle
 		board.continuous_servo[TableMotor].throttle = idle
-		board.continuous_servo[ShootWheel].throttle = idle
-		board.continuous_servo[FeedWheel].throttle = idle
+		board.continuous_servo[ShootWheel].throttle = shootIdle
+		board.continuous_servo[FeedWheel].throttle = shootIdle
 		eventHandler()
 		robotDisplay.fill(red)
 		message_display('System E-Stopped. Hold Left Bumper.')
@@ -184,14 +206,14 @@ def Running():
 	if deadMan == False:
 		eventHandler()
 		loopDrive()
+		shooter()
 		robotDisplay.fill(yellow)
 		message_display('716 DemoBot Enabled  :-)')
-		sub_message_display("Be the Frog!")
 while True:
-	startloop = time.time()
+	#startloop = time.time()
 	time.sleep(0.001)
 	Controls_init()
 	eventHandler()
 	Running()
 	Stopped()
-	print("Loop time: ", time.time() - startloop)
+	#print("Loop time: ", time.time() - startloop)
