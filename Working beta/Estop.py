@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 #Ain't pretty but shuts down everything
 #has as little logic as possible to run faster than main loop
 from adafruit_servokit import ServoKit

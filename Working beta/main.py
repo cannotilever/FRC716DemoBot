@@ -1,4 +1,8 @@
-#716 Demo-bot code for RaspberryPi 3b+, updated 11/21/19 by Jacob Ellington
+print("YOU ARE RUNNING AN UNTESTED COPY OF THE MAIN CODE!")
+accept = input("Do you accept the risk? ")
+if accept != 'Yes':
+	exit()
+#716 Demo-bot code for RaspberryPi 3b+, updated 11/22/19 by Jacob Ellington
 import time
 import math
 import pygame
@@ -32,7 +36,7 @@ ShootPower = 0.99 #starting shoot power
 FeedPowerInit = 0.5
 TablePower = 0.99
 DrivePower = 0.99
-ShootDelay = 2.2 #Seconds to allow shooter to spool up
+ShootDelay = 1.8 #Seconds to allow shooter to spool up
 xDeadZone = 0.16
 yDeadZone = 0.16
 MotorDeadZone = 0 #0.025
@@ -184,7 +188,11 @@ def eventHandler():
 		if event.type == pygame.QUIT: # If user clicked close.
 			quit()
 		elif event.type == KEYDOWN:
-			if event.key == K_ESCAPE or K_SPACE:
+			if event.key == k_SPACE:
+				os.system("./Estop.py")
+				pygame.quit()
+				exit()
+			if event.key == K_ESCAPE:
 				pygame.quit()
 				if verbose: print("A keyboard request to exit has been registered. Halt.")
 				exit()
