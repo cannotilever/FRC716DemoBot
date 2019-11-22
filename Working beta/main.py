@@ -1,6 +1,4 @@
-#Shanea was here
-#WARNING: l2ping saftey checks are commented!
-#716 Demo-bot code for RaspberryPi 3b+, updated 11/1/19 by Jacob Ellington
+#716 Demo-bot code for RaspberryPi 3b+, updated 11/21/19 by Jacob Ellington
 import time
 import math
 import pygame
@@ -29,16 +27,18 @@ TableMotor = 4
 #---
 idle = 0 #0.025
 shootIdle = 0.025
-ShootPower = 0.9
-FeedPower = 0.5
+allowShootSpeedChange = True
+ShootPower = 0.99 #starting shoot power
+FeedPowerInit = 0.5
 TablePower = 0.99
-DrivePower = 0.5
+DrivePower = 0.99
 ShootDelay = 2.2 #Seconds to allow shooter to spool up
 xDeadZone = 0.16
 yDeadZone = 0.16
 MotorDeadZone = 0 #0.025
 #-----End Output Mappings-------
-CtrlType = 'wired' #assumes we are using xbox wired controls
+dPadReleased = True
+CtrlType = 'wireless' #assumes we are using xbox wireless controls
 verbose = False
 for x in sys.argv:
 	if x == '--verbose':
@@ -46,8 +46,10 @@ for x in sys.argv:
 	elif x == '--help':
 		os.system("cat /home/pi/Robotics/.MainHelp.md")
 		exit()
-	elif x == '--wireless':
-		CtrlType = 'wireless'
+	elif x == '--wired':
+		CtrlType = 'wired'
+	elif x == '--fixed-speeds':
+		allowShootSpeedChange = False
 	elif x == '--test-interfaces':
 		print ("Initiating Adafruit Interface Test Suite...")
 		try:
@@ -96,6 +98,8 @@ def Controls_init():
 		bButton = controller.get_button(1)
 		xButton = controller.get_button(3)
 		rStickDown = controller.get_button(14)
+		dPadUp = 0 #Need Value!
+		dPadDown = 0 #Need Value!
 	elif CtrlType == 'wired': #default mappings for Wired controller
 		controllerY = -1* (controller.get_axis(4))
 		controllerX = controller.get_axis(3)
@@ -105,6 +109,9 @@ def Controls_init():
 		lBumper = controller.get_button(4)
 		bButton = controller.get_button(1)
 		xButton = controller.get_button(2)
+		rStickDown = 0 #Need Value!
+		dPadUp = 0 #Need Value!
+		dPadDown = 0 #Need Value!
 	else:
 		print("Critical Error")
 		if verbose:
@@ -155,7 +162,9 @@ def loopDrive():
 	board.continuous_servo[RightDrive].throttle = rightPower
 	if verbose: print ("Motor Conditions (l,r):", leftPower, rightPower)
 def shooter():
-	global rTrigger, ShootTimer
+	global rTrigger, ShootTimer, FeedPower
+	FeedPower = (FeedPowerInit * ShootPower) + 0.1
+	if FeedPower >= 1: FeedPower = 0.99
 	if rTrigger >= 0.5:
 		if verbose:
 			print("Shooter System Activated!")
@@ -169,7 +178,7 @@ def shooter():
 		board.continuous_servo[FeedWheel].throttle = shootIdle
 		board.continuous_servo[ShootWheel].throttle = shootIdle
 def eventHandler():
-	global deadMan, CtrlType
+	global deadMan, CtrlType, ShootPower, dPadReleased
 	deadMan = True
 	for event in pygame.event.get(): # User did something.
 		if event.type == pygame.QUIT: # If user clicked close.
@@ -185,10 +194,14 @@ def eventHandler():
 		os.system("sudo shutdown now") #cut power immediatley
 	if lBumper == 1:
 		deadMan = False
-	#if CtrlType == 'wireless':
-	#	ping = os.system("l2ping -c 1 5C:BA:37:E5:A7:8D")
-	#	if ping !=0:
-	#		deadMan = True
+	if (dPadUp == 0) and (dPadDown == 0): dPadReleased = True
+	if allowShootSpeedChange and dPadReleased = True:
+		if dPadUp == 1 and (ShootPower <= 0.99):
+			ShootPower += 0.1
+			dPadReleased = False
+		elif dPadDown == 1 and (ShootPower >= 0.15):
+			ShootPower -= 0.1
+			dPadReleased = False
 def Stopped():
 	if deadMan == True:
 		print("Stopped!")
@@ -210,10 +223,8 @@ def Running():
 		robotDisplay.fill(yellow)
 		message_display('716 DemoBot Enabled  :-)')
 while True:
-	#startloop = time.time()
 	time.sleep(0.001)
 	Controls_init()
 	eventHandler()
 	Running()
 	Stopped()
-	#print("Loop time: ", time.time() - startloop)
