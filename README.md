@@ -15,7 +15,7 @@ This Code is Still in Progress as of 11/26/19 but is suitable for production.
 	1. Optional USB wired support
 	1. Automatic Emergency Stop on controller latency above 60ms
 ## Future loadouts in the pipeline: ##
-1.More Pi's
+1. More Pi's
 	1. Sense HAT for auto mode navegation
 	1. PiFace HAT for LED control and Digital inputs
 1. Saftey
