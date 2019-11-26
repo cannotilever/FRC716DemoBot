@@ -83,6 +83,7 @@ for x in sys.argv:
 print ("Verbose Mode: ", verbose)
 print ("Control Type: ", CtrlType)
 #robotDisplay = pygame.display.set_mode((50, 70))
+if CtrlType == 'wireless': os.system('sudo ./CheckCtrl.py') #idk if this will hang the code lol
 from adafruit_servokit import ServoKit
 board = ServoKit(channels=16)
 pygame.init()
